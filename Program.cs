@@ -4,7 +4,6 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Runtime.InteropServices;
-using Microsoft.AspNetCore.Hosting;
 
 namespace MyAPIProject
 {
@@ -18,6 +17,7 @@ namespace MyAPIProject
     public class Program
     {
         private static bool IsCodeSnackIDE => !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        private static int _selectedPort = 5000;
 
         public static void Main(string[] args)
         {
@@ -36,26 +36,26 @@ namespace MyAPIProject
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
-            // Configure Kestrel for CodeSnack IDE
             if (IsCodeSnackIDE)
             {
-                builder.WebHost.ConfigureKestrel(serverOptions =>
+                for (int port = 5000; port < 5100; port++)
                 {
-                    // Try different ports if 5000 is in use
-                    foreach (var port in new[] { 5000, 5001, 5002, 5003, 5004 })
+                    try
                     {
-                        try
-                        {
-                            serverOptions.ListenLocalhost(port);
-                            Console.WriteLine($"Selected port: {port}");
-                            break;
-                        }
-                        catch
-                        {
-                            continue;
-                        }
+                        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Parse("127.0.0.1"), port);
+                        listener.Start();
+                        listener.Stop();
+                        _selectedPort = port;
+                        Console.WriteLine($"Found available port: {_selectedPort}");
+                        break;
                     }
-                });
+                    catch
+                    {
+                        continue;
+                    }
+                }
+
+                builder.WebHost.UseUrls($"http://127.0.0.1:{_selectedPort}");
             }
 
             var app = builder.Build();
@@ -70,14 +70,13 @@ namespace MyAPIProject
             app.UseAuthorization();
             app.MapControllers();
 
-            // Start the API with proper URL
             var apiThread = new Thread(() =>
             {
                 try
                 {
                     if (IsCodeSnackIDE)
                     {
-                        app.Run("http://localhost:5000");
+                        app.Run($"http://127.0.0.1:{_selectedPort}");
                     }
                     else
                     {
@@ -91,7 +90,6 @@ namespace MyAPIProject
             });
             apiThread.Start();
 
-            // Wait for API to start
             Thread.Sleep(2000);
 
             RunConsoleInterface().GetAwaiter().GetResult();
@@ -129,9 +127,8 @@ namespace MyAPIProject
 
         private static async Task RunConsoleInterface()
         {
-            // Use localhost instead of 0.0.0.0
             var baseUrl = IsCodeSnackIDE
-                ? "http://localhost:5000/api/Products"
+                ? $"http://127.0.0.1:{_selectedPort}/api/Products"
                 : "http://localhost:5000/api/Products";
 
             var client = new HttpClient();
