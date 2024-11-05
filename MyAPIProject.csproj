@@ -21,10 +21,29 @@
     <None Include="bin\Debug\net8.0\Swashbuckle.AspNetCore.Swagger.dll" />
     <None Include="bin\Debug\net8.0\Swashbuckle.AspNetCore.SwaggerGen.dll" />
     <None Include="bin\Debug\net8.0\Swashbuckle.AspNetCore.SwaggerUI.dll" />
+    <None Include="MyAPIProject.sln" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+    <PackageReference Include="Microsoft.AspNet.WebApi.Cors" Version="5.3.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.10">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="8.0.6" />
+    <PackageReference Include="NumSharp" Version="0.30.0" />
+    <PackageReference Include="SciSharp.TensorFlow.Redist" Version="2.16.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+    <PackageReference Include="System.Net.Http.Json" Version="8.0.1" />
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <PackageReference Include="TensorFlow.NET" Version="0.150.0" />
   </ItemGroup>
 
 </Project>
