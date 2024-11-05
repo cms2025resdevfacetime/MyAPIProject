@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Runtime.InteropServices;
+using Microsoft.AspNetCore.Hosting;
 
 namespace MyAPIProject
 {
@@ -16,7 +17,6 @@ namespace MyAPIProject
 
     public class Program
     {
-        // Check if running in CodeSnack IDE by detecting Linux environment
         private static bool IsCodeSnackIDE => !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
         public static void Main(string[] args)
@@ -36,12 +36,25 @@ namespace MyAPIProject
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
-            // Configure Kestrel based on environment
+            // Configure Kestrel for CodeSnack IDE
             if (IsCodeSnackIDE)
             {
                 builder.WebHost.ConfigureKestrel(serverOptions =>
                 {
-                    serverOptions.ListenAnyIP(5000);
+                    // Try different ports if 5000 is in use
+                    foreach (var port in new[] { 5000, 5001, 5002, 5003, 5004 })
+                    {
+                        try
+                        {
+                            serverOptions.ListenLocalhost(port);
+                            Console.WriteLine($"Selected port: {port}");
+                            break;
+                        }
+                        catch
+                        {
+                            continue;
+                        }
+                    }
                 });
             }
 
@@ -54,24 +67,17 @@ namespace MyAPIProject
             }
 
             app.UseCors("AllowAll");
-
-            // Only use HTTPS redirection in Windows environment
-            if (!IsCodeSnackIDE)
-            {
-                app.UseHttpsRedirection();
-            }
-
             app.UseAuthorization();
             app.MapControllers();
 
-            // Start the API
+            // Start the API with proper URL
             var apiThread = new Thread(() =>
             {
                 try
                 {
                     if (IsCodeSnackIDE)
                     {
-                        app.Run("http://0.0.0.0:5000");
+                        app.Run("http://localhost:5000");
                     }
                     else
                     {
@@ -87,10 +93,6 @@ namespace MyAPIProject
 
             // Wait for API to start
             Thread.Sleep(2000);
-
-            // Display startup message
-            Console.WriteLine($"Environment: {(IsCodeSnackIDE ? "CodeSnack IDE" : "Windows")}");
-            Console.WriteLine("Starting API and Console Interface...");
 
             RunConsoleInterface().GetAwaiter().GetResult();
         }
@@ -127,9 +129,9 @@ namespace MyAPIProject
 
         private static async Task RunConsoleInterface()
         {
-            // Set base URL according to environment
+            // Use localhost instead of 0.0.0.0
             var baseUrl = IsCodeSnackIDE
-                ? "http://0.0.0.0:5000/api/Products"
+                ? "http://localhost:5000/api/Products"
                 : "http://localhost:5000/api/Products";
 
             var client = new HttpClient();
