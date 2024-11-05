@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace MyAPIProject
 {
@@ -154,8 +155,9 @@ namespace MyAPIProject
                 Console.WriteLine("║ 1. ├── Refresh Products List");
                 Console.WriteLine("║ 2. ├── Get Product by ID");
                 Console.WriteLine("║ 3. ├── Run TensorFlow Demo");
-                Console.WriteLine("║ 4. └── Exit");
-                Console.Write("\n║ Enter your choice (1-4): ");
+                Console.WriteLine("║ 4. ├── Run Custom Logic");
+                Console.WriteLine("║ 5. └── Exit");
+                Console.Write("\n║ Enter your choice (1-5): ");
 
                 var choice = Console.ReadLine();
                 Console.WriteLine();
@@ -174,6 +176,9 @@ namespace MyAPIProject
                             await RunTensorFlowDemo(client, baseUrl);
                             break;
                         case "4":
+                            await RunCustomLogic(client, baseUrl);
+                            break;
+                        case "5":
                             DisplayStatusMessage("Shutting down...");
                             Thread.Sleep(1000);
                             Environment.Exit(0);
@@ -291,6 +296,31 @@ namespace MyAPIProject
             else
             {
                 DisplayStatusMessage("Failed to run TensorFlow demo", true);
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"║ Error Response: {errorContent}");
+            }
+        }
+
+        private static async Task RunCustomLogic(HttpClient client, string baseUrl)
+        {
+            Console.Write("║ Enter your string input: ");
+            var input = Console.ReadLine() ?? string.Empty;
+
+            DisplayStatusMessage("Running custom logic...");
+
+            var content = new StringContent($"\"{input}\"", Encoding.UTF8, "application/json");
+            var response = await client.PostAsync($"{baseUrl}/custom-logic", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadAsStringAsync();
+                DrawBorder("Custom Logic Results");
+                Console.WriteLine($"║ Response: {result}");
+                DisplayStatusMessage("Custom logic executed successfully");
+            }
+            else
+            {
+                DisplayStatusMessage("Failed to execute custom logic", true);
                 var errorContent = await response.Content.ReadAsStringAsync();
                 Console.WriteLine($"║ Error Response: {errorContent}");
             }
