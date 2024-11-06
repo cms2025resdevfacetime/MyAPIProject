@@ -194,6 +194,10 @@ namespace MyAPIProject.Controllers
                 var stageOneProperty = myInMemoryObject.GetProperty("ProcessStageOneProperty");
                 Console.WriteLine($"Stage 2 Retrieved Property Value from JIT Memory: {stageOneProperty}");
                 
+                myInMemoryObject.AddProperty("Added_String_ProcessStageTwo", "myString");
+                ForceJitCompilation(myInMemoryObject.DynamicObject);
+                Console.WriteLine($"Stage 2 Added New Property to JIT Memory: Added_String_ProcessStageTwo");
+                
                 var words = input.Split(' ');
                 var processed = words.Select(w => w.Length > 3 ? char.ToUpper(w[0]) + w.Substring(1) : w);
                 var result = string.Join(" ", processed);
@@ -212,6 +216,10 @@ namespace MyAPIProject.Controllers
                 var stageOneProperty = myInMemoryObject.GetProperty("ProcessStageOneProperty");
                 Console.WriteLine($"Stage 3 Retrieved Property Value from JIT Memory: {stageOneProperty}");
                 
+                myInMemoryObject.AddProperty("Added_String_ProcessStageThree", "myString");
+                ForceJitCompilation(myInMemoryObject.DynamicObject);
+                Console.WriteLine($"Stage 3 Added New Property to JIT Memory: Added_String_ProcessStageThree");
+                
                 var reversed = new string(input.Reverse().ToArray());
                 var wordCount = input.Split(' ').Length;
                 
@@ -228,6 +236,10 @@ namespace MyAPIProject.Controllers
                 var jitObject = RetrieveFromJitMemory();
                 var stageOneProperty = myInMemoryObject.GetProperty("ProcessStageOneProperty");
                 Console.WriteLine($"Stage 4 Retrieved Property Value from JIT Memory: {stageOneProperty}");
+                
+                myInMemoryObject.AddProperty("Added_String_ProcessStageFour", "myString");
+                ForceJitCompilation(myInMemoryObject.DynamicObject);
+                Console.WriteLine($"Stage 4 Added New Property to JIT Memory: Added_String_ProcessStageFour");
                 
                 var vowels = input.Count(c => "aeiouAEIOU".Contains(c));
                 var consonants = input.Count(c => char.IsLetter(c)) - vowels;
