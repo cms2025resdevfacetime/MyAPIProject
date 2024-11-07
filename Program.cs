@@ -303,13 +303,28 @@ namespace MyAPIProject
 
         private static async Task RunCustomLogic(HttpClient client, string baseUrl)
         {
+            Console.Write("║ Enter ID: ");
+            if (!int.TryParse(Console.ReadLine(), out int id))
+            {
+                DisplayStatusMessage("Invalid ID format", true);
+                return;
+            }
+
+            Console.Write("║ Enter name: ");
+            var name = Console.ReadLine() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                DisplayStatusMessage("Name cannot be empty", true);
+                return;
+            }
+
             Console.Write("║ Enter your string input: ");
             var input = Console.ReadLine() ?? string.Empty;
 
             DisplayStatusMessage("Running custom logic...");
 
             var content = new StringContent($"\"{input}\"", Encoding.UTF8, "application/json");
-            var response = await client.PostAsync($"{baseUrl}/custom-logic", content);
+            var response = await client.PostAsync($"{baseUrl}/custom-logic/{id}/{name}", content);
 
             if (response.IsSuccessStatusCode)
             {
