@@ -16,6 +16,10 @@ using System.Dynamic;
 using System.Runtime.InteropServices;
 using System.Reflection;
 using Tensorflow.Contexts;
+using Accord.MachineLearning;
+using Accord.Math;
+using Accord.Math.Distances;
+
 
 //Newest Notes
 
@@ -99,6 +103,8 @@ namespace MyAPIProject.Controllers
             }
             return product;
         }
+
+
 
         [HttpPost("custom-logic/{id}/{name}")]
         public async Task<IActionResult> CustomLogic([FromRoute] int id, [FromRoute] string name, [FromBody] string? inputString = null)
@@ -198,34 +204,43 @@ namespace MyAPIProject.Controllers
                 var processedInput = _input.ToUpper();
                 var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
 
+                ///Sample In-Memory Implementation
                 myInMemoryObject.AddProperty("ProcessStageOneProperty", "ProcessStageOnePropertyStringValue");
                 myInMemoryObject.AddProperty("ProcessingId", _id);
                 myInMemoryObject.AddProperty("ProcessingName", _name);
-
                 ForceJitCompilation(myInMemoryObject.DynamicObject);
-
                 var propertyValue = myInMemoryObject.GetProperty("ProcessStageOneProperty");
 
                 try
                 {
+                    ///Prep TF Enviorment
                     Console.WriteLine("Initializing TensorFlow Enviorment");
                     tf.enable_eager_execution();
                     Console.WriteLine("TensorFlow eager execution enabled");
 
+                    ///Initial Detection of Model in Database
                     Console.WriteLine("Fetching Model from database");
                     var pricingModel = await _context.TrainingModels
                         .FirstOrDefaultAsync(m => m.ModelName == "Pricing_Model");
 
                     if (pricingModel != null)
                     {
+                        ///Identification of the model
                         Console.WriteLine($"Pricing Model found: {pricingModel.ModelName}");
                         Console.WriteLine($"Model ID: {pricingModel.Id}");
                         Console.WriteLine($"Model Data Size: {(pricingModel.Data?.Length ?? 0)} bytes");
 
+                        ///Detect if the Model also Has Data from the Database
                         if (pricingModel.Data != null && pricingModel.Data.Length > 0)
                         {
+                            /// <summary>
+                            /// MODEL FOUND Part A
+                            /// </summary>
                             Console.WriteLine("Model data is present and can be used for TensorFlow processing");
-
+                            /// <summary>
+                            /// RETRIEVED Neural Network Training from Data Retrieved from Database 
+                            /// In Progress......
+                            /// </summary>
                             // Add model properties to in-memory object
                             myInMemoryObject.AddProperty("ModelId", pricingModel.Id);
                             Console.WriteLine("Successfully added Model ID to in-memory object");
@@ -233,20 +248,22 @@ namespace MyAPIProject.Controllers
                             myInMemoryObject.AddProperty("ModelName", pricingModel.ModelName);
                             Console.WriteLine("Successfully added Model Name to in-memory object");
 
-                            myInMemoryObject.AddProperty("ModelData", pricingModel.Data);
-                            Console.WriteLine("Successfully added Model Data to in-memory object");
+                            myInMemoryObject.AddProperty("Data", pricingModel.Data);
+                            Console.WriteLine("Successfully added Data to in-memory object");
 
                             // Verify properties were added
                             var storedId = myInMemoryObject.GetProperty("ModelId");
                             var storedName = myInMemoryObject.GetProperty("ModelName");
-                            var storedData = myInMemoryObject.GetProperty("ModelData") as byte[];
+                            var storedData = myInMemoryObject.GetProperty("Data") as byte[];
 
                             Console.WriteLine($"Verification - Stored Model ID: {storedId}");
                             Console.WriteLine($"Verification - Stored Model Name: {storedName}");
                             Console.WriteLine($"Verification - Stored Data Size: {storedData?.Length ?? 0} bytes");
 
-
-
+                            /// <summary>
+                            /// RETRIEVED Data Clustering creation and training from Data Retrieved from Database 
+                            /// In Progress......
+                            /// </summary>
                         }
                         else
                         {
@@ -255,8 +272,17 @@ namespace MyAPIProject.Controllers
                     }
                     else
                     {
+                        /// <summary>
+                        /// MODEL NOT FOUND Part B
+                        /// </summary>
                         Console.WriteLine("No Model found in database");
 
+                        /// <summary>
+                        /// PREPARE THE DATA 
+                        /// </summary>
+
+                        /// NEW Get THE PRODUCT from database to train on - 1
+                        /// Selection Data Set with constraint
                         Console.WriteLine("Fetching product data");
                         var productRecord = await _context.Products
                             .Where(p => p.IdProduct == _id && p.Name == _name)
@@ -268,63 +294,150 @@ namespace MyAPIProject.Controllers
                         }
                         else
                         {
+                            /// NEW Get THE PRODUCT from database to train on - 2
                             Console.WriteLine($"Product found - ID: {productRecord.IdProduct}, Name: {productRecord.Name}");
 
+                            /// NEW Get PRODUCTS from database to train on - 1
+                            /// Categorical DATA Set with constraints
                             Console.WriteLine("Fetching all products with the same name for training");
                             var productsByName = await _context.Products
                                 .Where(p => p.Name == _name)
                                 .ToListAsync();
-                            ///Lets load all the prices results into a local variable 
-                            var productsByNamePrices = productsByName.Select(p => (float)p.Price).ToArray();
+
                             /// <summary>
-                            ///  From that list we will show the number of record that are aquired 
-                            ///  Then we will clarify the range of of all the reconds aquired in terms
-                            /// of a specified columns
+                            /// Structure Input Params for training model 
+                            /// </summary>
+                            /// NEW Get PRODUCTS from database to train on Lets load all the prices results into a local variable -2
+
+                            /// Names
+                            var productByNameNames = productsByName.Select(p => p.Name).ToArray();
+                            /// Prices
+                            var productsByNamePrices = productsByName.Select(p => (float)p.Price).ToArray();
+
+                            /// <summary>
+                            /// NEW Get PRODUCTS from database to train on - 3
+                            /// From that list we will show the number of record that are acquired 
+                            /// Then we will clarify the range of all the records acquired in terms
+                            /// of specified columns
                             /// </summary>
                             Console.WriteLine($"Training data initialized. Number of samples: {productsByNamePrices.Length}");
                             Console.WriteLine($"Price range: {productsByNamePrices.Min()} to {productsByNamePrices.Max()}");
 
-                            Console.WriteLine("Initializing the creattion of Neural Network tensor becuase we have to create a model");
-                            Console.WriteLine("Initializing TensorFlow tensor");
-                            Tensor trainData;
+                            /// <summary>
+                            /// MODEL ARCHITECTURE MODIFICATIONS FOR COMBINED FEATURES
+                            /// 
+                            /// 1. Input Layer Changes:
+                            ///    - Original: Single input dimension (price only)
+                            ///    - Modified: Multiple input dimensions (price + one-hot encoded names)
+                            ///    - Input shape: [batch_size, 1 + number_of_unique_names]
+                            /// 
+                            /// 2. Weight Matrix (W) Modifications:
+                            ///    - Original: Shape was [1, 1] for price only
+                            ///    - Modified: Shape is [input_dim, 1] where input_dim = 1 + uniqueNames.Count
+                            ///    - Each row in W now corresponds to:
+                            ///      * Row 0: Price weight
+                            ///      * Row 1 to N: Weights for each unique name
+                            /// 
+                            /// 3. Bias Vector (b) Adjustments:
+                            ///    - Maintains shape [1] but now accounts for combined features
+                            ///    - Acts on the weighted sum of all features
+                            /// 
+                            /// 4. Forward Pass Calculation:
+                            ///    - Original: prediction = price_data * W + b
+                            ///    - Modified: prediction = concat(price_data, name_data) * W + b
+                            ///    - Matrix multiplication now incorporates both price and name influences
+                            /// 
+                            /// 5. Training Considerations:
+                            ///    - Loss function remains MSE but operates on higher dimensional inputs
+                            ///    - Gradient updates affect both price and name feature weights
+                            ///    - Learning rate applied uniformly across all feature weights
+                            /// </summary>
+
+                            /// <summary>
+                            /// NEW Neural Network creation and training from Data Retrieved from Database 
+                            /// </summary>
+                            Console.WriteLine("Phase One: Initializing the creation of Neural Network...");
+                            Console.WriteLine("Initializing tensors for both prices and names");
+                            Tensor priceTrainData;
+                            Tensor nameTrainData;
                             try
                             {
-                                trainData = tf.convert_to_tensor(productsByNamePrices, dtype: TF_DataType.TF_FLOAT);
-                                trainData = tf.reshape(trainData, new[] { -1, 1 }); // Reshape to 2D
-                                Console.WriteLine($"Tensor shape initialized: {string.Join(", ", trainData.shape)}");
                                 /// <summary>
-                                /// 
-                                ///  Part 9 
-                                ///  Lets prepare the training data
+                                /// Create separate tensors for prices and names
+                                /// Names are encoded as indices and then one-hot encoded
                                 /// </summary>
-                                Console.WriteLine("Initializing model variables");
-                                var W = tf.Variable(tf.random.normal(new[] { 1, 1 }));
+                                priceTrainData = tf.convert_to_tensor(productsByNamePrices, dtype: TF_DataType.TF_FLOAT);
+                                priceTrainData = tf.reshape(priceTrainData, new[] { -1, 1 }); // Reshape to 2D
+
+                                // Create dictionary for name encoding
+                                var uniqueNames = productByNameNames.Distinct().ToList();
+                                var nameToIndex = uniqueNames.Select((name, index) => new { name, index })
+                                                           .ToDictionary(x => x.name, x => x.index);
+
+                                // Convert names to indices
+                                var nameIndices = productByNameNames.Select(name => nameToIndex[name]).ToArray();
+
+                                /// <summary>
+                                /// One-hot encoding process:
+                                /// 1. Creates a matrix of size [num_samples, num_unique_names]
+                                /// 2. Each row represents one sample
+                                /// 3. Each column represents one unique name
+                                /// 4. Matrix contains 1.0 where name matches, 0.0 elsewhere
+                                /// </summary>
+                                var oneHotNames = new float[nameIndices.Length, uniqueNames.Count];
+                                for (int i = 0; i < nameIndices.Length; i++)
+                                {
+                                    oneHotNames[i, nameIndices[i]] = 1.0f;
+                                }
+
+                                nameTrainData = tf.convert_to_tensor(oneHotNames, dtype: TF_DataType.TF_FLOAT);
+
+                                /// <summary>
+                                /// Feature combination process:
+                                /// 1. Concatenate price and name tensors along axis 1 (columns)
+                                /// 2. Results in tensor of shape [num_samples, 1 + num_unique_names]
+                                /// 3. Each row contains: [price, name_1_hot, name_2_hot, ..., name_n_hot]
+                                /// </summary>
+                                var combinedTrainData = tf.concat(new[] { priceTrainData, nameTrainData }, axis: 1);
+
+                                Console.WriteLine($"Combined tensor shape: {string.Join(", ", combinedTrainData.shape)}");
+
+                                /// <summary>
+                                /// Modified model initialization:
+                                /// 1. inputDim = 1 (price) + uniqueNames.Count (one-hot encoded names)
+                                /// 2. W matrix shape: [inputDim, 1] for mapping combined features to price
+                                /// 3. b vector shape: [1] for single output bias
+                                /// </summary>
+                                Console.WriteLine("Initializing model variables for combined features");
+                                var inputDim = 1 + uniqueNames.Count; // Price dimension + name dimensions
+                                var W = tf.Variable(tf.random.normal(new[] { inputDim, 1 }));
                                 var b = tf.Variable(tf.zeros(new[] { 1 }));
 
-                                Console.WriteLine($"Initial W shape: {string.Join(", ", W.shape)}, b shape: {string.Join(", ", b.shape)}");
+                                Console.WriteLine($"Modified W shape: {string.Join(", ", W.shape)}, b shape: {string.Join(", ", b.shape)}");
+
                                 /// <summary>
-                                ///  
-                                ///  Part 10 
-                                ///  Then lets define the model inital specification  
+                                /// Part 2 
+                                /// Then lets define the model initial specification  
                                 /// </summary>
                                 Console.WriteLine("Initializing training parameters");
                                 int epochs = 100;
                                 float learningRate = 1e-2f;
+
                                 /// <summary>
-                                /// 
-                                ///  Part 11 
-                                ///  After etablising the constant, training data, and model design   
-                                ///  lets conduct inital training process 
+                                /// Part 3
+                                /// After establishing the constant, training data, and model design   
+                                /// lets conduct initial training process 
                                 /// </summary>
-                                Console.WriteLine("Starting training process");
+                                Console.WriteLine("Starting training process with combined features");
                                 for (int epoch = 0; epoch < epochs; epoch++)
                                 {
                                     try
                                     {
                                         using (var tape = tf.GradientTape())
                                         {
-                                            var predictions = tf.matmul(trainData, W) + b;
-                                            var loss = tf.reduce_mean(tf.square(predictions - trainData));
+                                            var predictions = tf.matmul(combinedTrainData, W) + b;
+                                            // Modified loss function to work with combined features
+                                            var loss = tf.reduce_mean(tf.square(predictions - priceTrainData));
 
                                             var gradients = tape.gradient(loss, new[] { W, b });
 
@@ -343,47 +456,56 @@ namespace MyAPIProject.Controllers
                                         throw new Exception($"Training failed at epoch {epoch}", ex);
                                     }
                                 }
-                                /// <summary>
-                                /// 
-                                ///  Part 12 
-                                ///  After the model is created from data from the database then trained    
-                                ///  lets prepare the prediction data  
-                                /// 
-                                /// </summary>
-                                Console.WriteLine("Training completed. Preparing for prediction.");
-                                var inputArray = new float[] { (float)productRecord.Price };
-                                var inputTensor = tf.convert_to_tensor(inputArray, dtype: TF_DataType.TF_FLOAT);
-                                inputTensor = tf.reshape(inputTensor, new[] { -1, 1 }); // Reshape to 2D
-                                /// <summary>
-                                ///  
-                                ///  Part 13 
-                                ///  After the prediction is created we will update the PredictionDataUpdate
-                                ///  object with the predicted value
-                                ///   
-                                /// 
-                                /// </summary>
-                                Console.WriteLine("Calculating prediction");
-                                var prediction = tf.matmul(inputTensor, W) + b;
-                                Console.WriteLine("Saving the prediction to the in-memory object");
 
-                                // Convert prediction tensor to float value
+                                /// <summary>
+                                /// Part 4 
+                                /// After the model is created from data from the database then trained    
+                                /// lets prepare the prediction data with combined features
+                                /// </summary>
+                                Console.WriteLine("Training completed. Preparing for prediction with combined features.");
+                                var inputPrice = new float[] { (float)productRecord.Price };
+                                var inputName = new float[uniqueNames.Count];
+                                inputName[nameToIndex[productRecord.Name]] = 1.0f;
+
+                                var combinedInput = tf.concat(new[] {
+                                tf.convert_to_tensor(new[] { inputPrice }, dtype: TF_DataType.TF_FLOAT),
+                                tf.convert_to_tensor(new[] { inputName }, dtype: TF_DataType.TF_FLOAT)
+                                                         }, axis: 1);
+
+                                /// <summary>
+                                /// Part 5 
+                                /// After the prediction is created we will update the IN MEMORY OBJECT
+                                /// object with the predicted value
+                                /// </summary>
+                                Console.WriteLine("Calculating prediction with combined features");
+                                var prediction = tf.matmul(combinedInput, W) + b;
                                 float predictionValue = prediction.numpy().ToArray<float>()[0];
 
                                 // Store the prediction and related data
                                 myInMemoryObject.AddProperty("NewModel_PredictionValue", predictionValue);
                                 myInMemoryObject.AddProperty("NewModel_InputPrice", productRecord.Price);
                                 myInMemoryObject.AddProperty("NewModel_PredictionTimestamp", DateTime.UtcNow);
+                                myInMemoryObject.AddProperty("NewModel_NameFeatures", uniqueNames.Count);
+                                myInMemoryObject.AddProperty("NewModel_TotalFeatures", inputDim);
 
-                                // Verify the stored prediction and display comprehensive results
+                                /// <summary>
+                                /// Part 6 
+                                /// Verify Saving of Prediction values    
+                                /// </summary>
                                 var storedPrediction = myInMemoryObject.GetProperty("NewModel_PredictionValue");
                                 Console.WriteLine("\n=== Prediction Results ===");
                                 Console.WriteLine($"Original Price: {productRecord.Price:C}");
                                 Console.WriteLine($"Predicted Value: {predictionValue:C}");
                                 Console.WriteLine($"Difference: {(predictionValue - (float)productRecord.Price):C}");
                                 Console.WriteLine($"Prediction Timestamp: {myInMemoryObject.GetProperty("NewModel_PredictionTimestamp")}");
+                                Console.WriteLine($"Number of Name Features: {myInMemoryObject.GetProperty("NewModel_NameFeatures")}");
+                                Console.WriteLine($"Total Features: {myInMemoryObject.GetProperty("NewModel_TotalFeatures")}");
                                 Console.WriteLine("=======================\n");
 
-                                // Serialize and save the model
+                                /// <summary>
+                                /// Part 7 
+                                /// Save the Model to the in-Runtime memory     
+                                /// </summary>
                                 Console.WriteLine("Starting model serialization process");
                                 using (var memoryStream = new MemoryStream())
                                 using (var writer = new BinaryWriter(memoryStream))
@@ -406,22 +528,70 @@ namespace MyAPIProject.Controllers
                                     }
                                     Console.WriteLine("Model bias serialized successfully");
 
-                                    // Save to in-memory object as single property
-                                    myInMemoryObject.AddProperty("Pricing_Model", memoryStream.ToArray());
-                                    Console.WriteLine("Model saved to in-memory object successfully");
+                                    // Save to in-memory object as separate properties
+                                    myInMemoryObject.AddProperty("ModelName", "Pricing_Model");
+                                    myInMemoryObject.AddProperty("Data", memoryStream.ToArray());
+                                    Console.WriteLine("Model name and data saved to in-memory object successfully");
 
                                     // Verify the stored model
-                                    var storedModelData = myInMemoryObject.GetProperty("Pricing_Model") as byte[];
+                                    var storedModelName = myInMemoryObject.GetProperty("ModelName");
+                                    var storedModelData = myInMemoryObject.GetProperty("Data") as byte[];
+                                    Console.WriteLine($"Verification - Model Name: {storedModelName}");
                                     Console.WriteLine($"Verification - Model Data Size: {storedModelData?.Length ?? 0} bytes");
-                                }
 
+                                    /// <summary>
+                                    /// NEW Data Clustering creation and training from Data Retrieved from Database 
+                                    /// </summary>
+                                    Console.WriteLine("Phase two: Initializing Data K Clustering Implementation");
+
+                                    Console.WriteLine($"Found {productsByName.Count} products with name '{_name}' for Data Clustering");
+
+                                    /// Extract prices and convert to double
+                                    Console.WriteLine("Extracting prices for clustering");
+                                    var prices = productsByName.Select(p => new double[] { (double)p.Price }).ToArray();
+
+                                    /// Define clustering parameters
+                                    int numClusters = 3; // Ensure we always have 3 clusters
+                                    int numIterations = 100;
+                                    Console.WriteLine($"Clustering parameters: clusters={numClusters}, iterations={numIterations}");
+
+                                    /// Create k-means algorithm
+                                    var kmeans = new Accord.MachineLearning.KMeans(numClusters)
+                                    {
+                                        MaxIterations = numIterations,
+                                        Distance = new SquareEuclidean()
+                                    };
+                                    /// Compute the algorithm
+                                    Console.WriteLine("Starting k-means clustering");
+                                    var clusters = kmeans.Learn(prices);
+
+                                    /// Get the cluster centroids
+                                    var centroids = clusters.Centroids;
+
+                                    Console.WriteLine("K-means clustering completed");
+
+                                    /// Get cluster assignments for each point
+                                    var assignments = clusters.Decide(prices);
+
+                                    /// Log final results
+                                    Console.WriteLine("Final clustering results:");
+                                    for (int i = 0; i < prices.Length; i++)
+                                    {
+                                        Console.WriteLine($"Price: {prices[i][0]:F4}, Cluster: {assignments[i]}");
+                                    }
+
+                                    Console.WriteLine("Final centroids:");
+                                    for (int i = 0; i < numClusters; i++)
+                                    {
+                                        Console.WriteLine($"Centroid {i}: {centroids[i][0]:F4}");
+                                    }
+                                }
                             }
                             catch (Exception ex)
                             {
                                 Console.WriteLine($"Tensor initialization failed: {ex.Message}");
                                 throw new Exception("Failed to initialize tensor from price data.", ex);
                             }
-
                         }
                     }
                 }
@@ -465,63 +635,10 @@ namespace MyAPIProject.Controllers
                 var pricingModel = myInMemoryObject.GetProperty("Pricing_Model");
                 object processStageTwoModelData;
 
-                if (modelData != null)
-                {
-                    Console.WriteLine("MODEL FOUND IN DATABASE! Selecting ModelData STORED IN MEMORY for processing");
-                    processStageTwoModelData = modelData;
-                    ///TODO: Training if model is found in the database and saved to the in memeory object
-                }
-                else if (pricingModel != null)
-                {
-                    Console.WriteLine("MODEL JUST CREATED! Selecting Pricing_Model STORED IN MEMORY for processing");
-                    processStageTwoModelData = pricingModel;
+               
+               
 
-                    Console.WriteLine("Starting deserialization of newly created model from memory");
-                    using (var memoryStream = new MemoryStream(processStageTwoModelData as byte[]))
-                    using (var reader = new BinaryReader(memoryStream))
-                    {
-                        Console.WriteLine("Initializing binary reader for model data");
 
-                        // Read weights
-                        var weightLength = reader.ReadInt32();
-                        Console.WriteLine($"Reading weights data. Length: {weightLength}");
-                        var weightsData = new float[weightLength];
-                        for (int i = 0; i < weightLength; i++)
-                        {
-                            weightsData[i] = reader.ReadSingle();
-                        }
-                        Console.WriteLine("Weights data successfully read from binary stream");
-
-                        // Read bias
-                        var biasLength = reader.ReadInt32();
-                        Console.WriteLine($"Reading bias data. Length: {biasLength}");
-                        var biasData = new float[biasLength];
-                        for (int i = 0; i < biasLength; i++)
-                        {
-                            biasData[i] = reader.ReadSingle();
-                        }
-                        Console.WriteLine("Bias data successfully read from binary stream");
-
-                        // Convert to TensorFlow variables
-                        Console.WriteLine("Converting weights to TensorFlow tensor");
-                        var W = tf.Variable(weightsData, shape: new[] { 1, 1 }, name: "weights");
-                        Console.WriteLine($"Weights tensor created with shape: {string.Join(", ", W.shape)}");
-
-                        Console.WriteLine("Converting bias to TensorFlow tensor");
-                        var b = tf.Variable(biasData, shape: new[] { 1 }, name: "bias");
-                        Console.WriteLine($"Bias tensor created with shape: {string.Join(", ", b.shape)}");
-
-                        Console.WriteLine("Model parameters successfully loaded into TensorFlow variables");
-                        Console.WriteLine($"Verification - Weight variable shape: {string.Join(", ", W.shape)}, Bias variable shape: {string.Join(", ", b.shape)}");
-                    }
-                    ///Todo: Prepare for reinforcement learing with Clustering
-
-                    }
-                else
-                {
-                    Console.WriteLine("In Memory instance model data is not found");
-                    processStageTwoModelData = null;
-                }
 
                 myInMemoryObject.AddProperty("Added_String_ProcessStageTwo", "myString");
                 ForceJitCompilation(myInMemoryObject.DynamicObject);
